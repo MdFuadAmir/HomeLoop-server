@@ -13,13 +13,15 @@ const port = process.env.PORT || 3000;
 //===================== middleware ====================//
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: ["https://houseloop.web.app","http://localhost:5173","https://house-loop-server.vercel.app"],
     credentials: true,
   })
 );
 app.use(express.json());
 //===================== firebase admin setup ====================//
-const serviceAccount = require("./firebase-Admin-Key.json");
+const decodedKey = Buffer.from(process.env.FB_SERVICE_KEY,"base64").toString('utf8') 
+// const serviceAccount = require("./firebase-Admin-Key.json");
+const serviceAccount = JSON.parse(decodedKey);
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
@@ -202,6 +204,23 @@ async function run() {
       }
       const user = await usersCollection.findOne({ email });
       res.send(user);
+    });
+        app.patch("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const { status } = req.body;
+      const query = { email };
+      const existingUser = await usersCollection.findOne(query);
+
+      if (existingUser?.status === "requested") {
+        return res.send({ alreadyRequested: true });
+      }
+      const updateDoc = {
+        $set: {
+          status,
+        },
+      };
+      const result = await usersCollection.updateOne(query, updateDoc);
+      res.send(result);
     });
 
     //======================= rooms api=============================//
@@ -451,10 +470,10 @@ async function run() {
       res.send({ totalBooking, totalPrice, chartData });
     });
     //================= MongoDB connection test =================//
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
